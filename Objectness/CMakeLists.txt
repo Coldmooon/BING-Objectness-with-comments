@@ -1,8 +1,16 @@
+project(BING_linux)
+cmake_minimum_required(VERSION 2.8)
+
 set(INC_DIRS ${BING_SOURCE_DIR}/LibLinear ${BING_SOURCE_DIR}/LibLinear/blas)
 set(LIB_DIRS ${BING_BINARY_DIR}/LibLinear)
 
 #OPENCV_DIR should be set as an environment variable in the shell if it is not
 #present in the standard directories
+#OPENCV
+include_directories(/usr/local/include)
+link_directories(/usr/local/lib)
+##if this does not work, then try to uncomment the things below.
+find_package( OpenCV REQUIRED )
 if (DEFINED ENV{OPENCV_DIR})
   list(APPEND INC_DIRS ${OPENCV_DIR}/include)
   list(APPEND LIB_DIRS ${OPENCV_DIR}/lib)
@@ -20,4 +28,4 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OPENMP_FLAG} -O3")
 set(SRC_FILES CmFile.cpp CmShow.cpp DataSetVOC.cpp FilterTIG.cpp Objectness.cpp stdafx.cpp)
 add_library(objectness ${SRC_FILES})
 add_executable(${PROJECT_NAME} ${SRC_FILES} Main.cpp)
-target_link_libraries(${PROJECT_NAME} opencv_highgui opencv_core opencv_imgproc liblinear blas)
+target_link_libraries(${PROJECT_NAME} opencv_highgui opencv_core opencv_imgproc opencv_imgcodecs liblinear blas)

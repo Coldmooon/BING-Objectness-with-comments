@@ -3,6 +3,7 @@
 // are changed infrequently
 //
 
+#define OPENCV_TRAITS_ENABLE_DEPRECATED
 #pragma once
 
 #define _CRTDBG_MAP_ALLOC
