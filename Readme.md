@@ -1,3 +1,29 @@
+# Introduction
+
+This repo is related to the paper: 
+BING: Binarized Normed Gradients for Objectness Estimation at 300fps. <br/>
+Ming-Ming Cheng, Ziming Zhang, Wen-Yan Lin, Philip Torr.<br/>
+IEEE CVPR, 2014. [pdf](http://mmcheng.net/mftp/Papers/ObjectnessBING.pdf)
+
+Currently, there are a lot of implements of BING. First, The authors published the windows version. Then `bittnt` converted it into the [Linux version](https://github.com/torrvision/Objectness). After that, [varun-nagaraja](https://github.com/varun-nagaraja/BING-Objectness) further added some new auxiliary functions to `bittnt` version. Even `bittnt` version keeps updating, its core parts maintain the same. So, this repo uses `varun-nagaraja` verison.
+
+The following files are heavily commented.
+1. DataSetVOC.cpp
+2. FilterTIG.cpp
+3. FilterTIG.h
+4. Objectness.cpp
+5. Main.cpp
+
+# For Opencv 3.3 or later
+If you are using opencv 3.3 or later, you might encounter with this error during compling:
+```
+error: no type named ‘channel_type’ in ‘class cv::DataType<long int>
+```
+This is not a bug but mentions you to change the data type. Check issues [9985](https://github.com/opencv/opencv/issues/9985), [10115](https://github.com/opencv/opencv/issues/10115), [7599](https://github.com/opencv/opencv/issues/7599).
+To fix this, simply add `#define OPENCV_TRAITS_ENABLE_DEPRECATED` in `stdafx.h`.
+
+-------------------------------------------
+
 ## Detect bounding boxes of objects in images irrespective of class/category.
 
 This is a fork of the BING Objectness code from www.mmcheng.net/bing for Linux and OSX. <br/>
