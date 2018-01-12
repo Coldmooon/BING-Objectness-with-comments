@@ -51,11 +51,12 @@ int Objectness::loadTrainedModel(string modelName) // Return -1, 0, or 1 if part
 
 	//filters1f = aFilter(0.8f, 8);
 	//normalize(filters1f, filters1f, p, 1, NORM_MINMAX);
-
-	normalize(filters1f, show3u, 1, 255, NORM_MINMAX, CV_8U);
-	CmShow::showTinyMat(_voc.resDir + "Filter.png", show3u);
+    
+    // filter1sf: filter image; show3u: normalized filter image with 3 channels.
+ 	normalize(filters1f, show3u, 1, 255, NORM_MINMAX, CV_8U);
+	CmShow::showTinyMat(_voc.resDir + "Filter.png", show3u); // save the filter image.
 	_tigF.update(filters1f);
-	//_tigF.reconstruct(filters1f);
+	//_tigF.reconstruct(filters1f); // 在 nagaraja 的github 里，这句被注释掉了
 
 	_svmSzIdxs = idx1i;
 	CV_Assert(_svmSzIdxs.size() > 1 && filters1f.size() == Size(_W, _W) && filters1f.type() == CV_32F);
@@ -69,42 +70,74 @@ int Objectness::loadTrainedModel(string modelName) // Return -1, 0, or 1 if part
 }
 
 void Objectness::predictBBoxSI(CMat &img3u, ValStructVec<float, Vec4i> &valBoxes, vecI &sz, int NUM_WIN_PSZ, bool fast)
+// void Objectness::predictBBoxSI(Mat &img3u, ValStructVec<float, Vec4i> &valBoxes, vecI &sz, int NUM_WIN_PSZ, bool fast)
 {
-	const int numSz = _svmSzIdxs.size();
+
+    // _svmSzIdxs 存储的都是一些滤波器的大小。
+	const int numSz = _svmSzIdxs.size(); // svmSzIdxs 是一个 vector，对应第一阶段学习到的分类器。第一阶段学习的分类器就用于第一阶段的检测。
 	const int imgW = img3u.cols, imgH = img3u.rows;
 	valBoxes.reserve(10000);
 	sz.clear(); sz.reserve(10000);
-	for (int ir = numSz - 1; ir >= 0; ir--){
-		int r = _svmSzIdxs[ir]; 
+	for (int ir = numSz - 1; ir >= 0; ir--){ // ir and r are used to compute the ratio.
+		int r = _svmSzIdxs[ir];
+        // pow (x, y) 函数返回 x^y。 base = 2 或许是为了 2 进制的某种运算
 		int height = cvRound(pow(_base, r/_numT + _minT)), width = cvRound(pow(_base, r%_numT + _minT));
-		if (height > imgH * _base || width > imgW * _base)
+		if (height > imgH * _base || width > imgW * _base) // 如果最小大小比图片大小还大，那么就跳过这张图片。
 			continue;
 
 		height = min(height, imgH), width = min(width, imgW);
 		Mat im3u, matchCost1f, mag1u;
+        
+        // 这里会把图像缩放到固定大小，如论文中所说。
 		resize(img3u, im3u, Size(cvRound(_W*imgW*1.0/width), cvRound(_W*imgH*1.0/height)));
-		gradientMag(im3u, mag1u);
-		
-		matchCost1f = _tigF.matchTemplate(mag1u);
-
+		gradientMag(im3u, mag1u); // 每个元素用一个字节存储。
+        // cout << "mag1u size: (" << mag1u.size() << ")" << ": " << endl;
+        // cout << mag1u << endl;
+//        Mat magforimg3u;
+//        gradientMag(img3u, magforimg3u);
+//        Mat forshow = img3u;
+//        imshow("img3u", forshow);
+//        waitKey(0);
+//        imshow("im3u", im3u);
+//        waitKey(0);
+//        imshow("magforimg3u", magforimg3u);
+//        waitKey(0);
+//        imshow("mag1u", mag1u);
+//        waitKey(0);
+        
+        // from bittnt:
+		//imwrite(_voc.localDir + format("%d.png", r), mag1u);	
+        //Mat mag1f;
+        //mag1u.convertTo(mag1f, CV_32F);
+        //matchTemplate(mag1f, _svmFilter, matchCost1f, CV_TM_CCORR);
+		// ----------
+		matchCost1f = _tigF.matchTemplate(mag1u); // 用 滤波器 tigF 在梯度图 mag1u 上面计算一个分数。
+//        cout << "matchCost1f.at<float>(0): " << matchCost1f << endl;
+//        cout << "matchCost1f.at<float>(0): " << matchCost1f.at<float>(0,0) << endl;
 		ValStructVec<float, Point> matchCost;
 		nonMaxSup(matchCost1f, matchCost, _NSS, NUM_WIN_PSZ, fast);
-
+        // matchCost 中存储了找到的窗口
+        
 		// Find true locations and match values
 		double ratioX = width/_W, ratioY = height/_W;
-		int iMax = min(matchCost.size(), NUM_WIN_PSZ);
+		int iMax = min(matchCost.size(), NUM_WIN_PSZ); // NUM_WIN_PSZ: 每种 size 的窗口数量限制
 		for (int i = 0; i < iMax; i++){
-			float mVal = matchCost(i);
-			Point pnt = matchCost[i];
-			Vec4i box(cvRound(pnt.x * ratioX), cvRound(pnt.y*ratioY));
-			box[2] = cvRound(min(box[0] + width, imgW));
+			float mVal = matchCost(i); // 获得分数
+			Point pnt = matchCost[i]; // 窗口对应的位置
+			Vec4i box(cvRound(pnt.x * ratioX), cvRound(pnt.y*ratioY)); // 原位置
+			box[2] = cvRound(min(box[0] + width, imgW)); // 在原图上的窗口的大小
 			box[3] = cvRound(min(box[1] + height, imgH));
 			box[0] ++;
 			box[1] ++;
-			valBoxes.pushBack(mVal, box); 
+			valBoxes.pushBack(mVal, box);  // 将临时结果保存起来。
 			sz.push_back(ir);
+//            rectangle(forshow, Rect(box[0],box[1],box[2],box[3]), cv::Scalar(255,255,0), 2);
 		}
+        
+//        imshow("img3u", forshow);
+//        waitKey(0);
 	}
+//    cout << endl;
 	//exit(0);
 }
 
@@ -124,9 +157,17 @@ void Objectness::predictBBoxSII(ValStructVec<float, Vec4i> &valBoxes, const vecI
 void Objectness::getObjBndBoxes(CMat &img3u, ValStructVec<float, Vec4i> &valBoxes, int numDetPerSize)
 {
 	CV_Assert_(filtersLoaded() , ("SVM filters should be initialized before getting object proposals\n"));
-	vecI sz;
-	predictBBoxSI(img3u, valBoxes, sz, numDetPerSize, false);
-	predictBBoxSII(valBoxes, sz);
+	vecI sz; // number of boxes for the current image. -- by liyang.
+	predictBBoxSI(img3u, valBoxes, sz, numDetPerSize, false); // get each box'score. -- by liyang.
+    
+    // for test:
+    Mat forshow = img3u;
+    for (int i = 0; i < valBoxes.structVals.size(); ++i)
+        rectangle(forshow, Rect(valBoxes[i].val[0],valBoxes[i].val[1],valBoxes[i].val[2],valBoxes[i].val[3]), cv::Scalar(255,255,0), 2);
+    imshow("img3u", forshow);
+    waitKey(0);
+
+	predictBBoxSII(valBoxes, sz); // sort valBoxes.valldxes by descanding. -- by liyang.
 	return;
 }
 
@@ -712,12 +753,12 @@ void Objectness::getObjBndBoxesForTestsFast(vector<vector<Vec4i> > &_boxesTests,
 	//setColorSpace(HSV);
 	if (!preloadModel)
 		trainObjectness(numDetPerSize);
-	loadTrainedModel();
+	loadTrainedModel(); // load SVM filter and save the filter image.
 	illustrate();
 
 
 	const int TestNum = _voc.testSet.size();
-	vecM imgs3u;
+	vecM imgs3u; // img后面有个 s ,说明是复数形式，所以这个变量用于存储多张图片。根据后面的代码，这个变量用于预先载入图像时使用。
 	if (preloadImages) 
 		imgs3u.resize(TestNum);
 	vector<ValStructVec<float, Vec4i> > boxesTests;
@@ -742,7 +783,7 @@ void Objectness::getObjBndBoxesForTestsFast(vector<vector<Vec4i> > &_boxesTests,
 		if (!preloadImages){
 		    Mat img = imread(format(_S(_voc.imgPathW), _S(_voc.testSet[i])));
 		    getObjBndBoxes(img, boxesTests[i], numDetPerSize);
-		}else{
+		}else{ // get the boxes and each box's score for the current image.
 			getObjBndBoxes(imgs3u[i], boxesTests[i], numDetPerSize);
 		}
 	}
@@ -768,7 +809,15 @@ void Objectness::getObjBndBoxesForTestsFast(vector<vector<Vec4i> > &_boxesTests,
 
 		_boxesTests[i].resize(boxesTests[i].size());
 		for (int j = 0; j < boxesTests[i].size(); j++)
-			_boxesTests[i][j] = boxesTests[i][j];
+        {
+            _boxesTests[i][j] = boxesTests[i][j];
+//            cout << boxesTests[i][j] << endl;
+//            for(int k = 0; k < 4; ++k)
+//            {
+//                printf("boxesTests[%d][%d] is :%d", i,j,boxesTests[i][j][k]);
+//            }
+//            cout << endl;
+        }
 	}
 
 	evaluatePerImgRecall(_boxesTests, "PerImgAll.m", 5000);
@@ -797,21 +846,35 @@ void Objectness::evaluatePerImgRecall(const vector<vector<Vec4i> > &boxesTests, 
 	vecD recalls(NUM_WIN);
 	vecD avgScore(NUM_WIN);
 	const int TEST_NUM = _voc.testSet.size();
-	for (int i = 0; i < TEST_NUM; i++){
-		const vector<Vec4i> &boxesGT = _voc.gtTestBoxes[i];
+    
+    // 该三重循环的逻辑是，处理每张测试图片中的，每个detection 与 每个BBox的关系。
+	for (int i = 0; i < TEST_NUM; i++) // 对每个测试图片而言
+    {
+		const vector<Vec4i> &boxesGT = _voc.gtTestBoxes[i]; // GT means ground truth.
 		const vector<Vec4i> &boxes = boxesTests[i];
 		const int gtNumCrnt = boxesGT.size();
-		vecI detected(gtNumCrnt);
-		vecD score(gtNumCrnt);
+		vecI detected(gtNumCrnt); // vecI = vector<int>
+		vecD score(gtNumCrnt); // vecD = vector<double>
 		double sumDetected = 0, abo = 0;
-		for (int j = 0; j < NUM_WIN; j++){
+		for (int j = 0; j < NUM_WIN; j++) // 对每个测试图片的 detection 而言。假设是 5000个。
+        {
+            // 因为假设了有5000个detection，但是实际上可能并没有这么多。因此，就要考虑当循环进行到
+            // 大于实际detection的数量时，就应当直接跳过循环，即 continue 过去。
 			if (j >= (int)boxes.size()){
 				recalls[j] += sumDetected/gtNumCrnt;
 				avgScore[j] += abo/gtNumCrnt;
 				continue;
 			}
-
-			for (int k = 0; k < gtNumCrnt; k++)	{
+            // interUnio: 计算检测框与Bounding box 的重叠率。
+            // detection 与 bounding box 的重叠面积就是分数。这个分数并非单纯属于 detection 的，而是
+            // 属于 BBox 的。每个 BBox 都有两个属性：1）所有 detection中，重叠面积最大的比率，即分数。
+            // 2）该BBox是否被检测到。sumDetected 用于统计 BBox 被检测到的数量。abo 用于计算对所有BBox
+            // 而言，总的重叠率。例如，假设第一个BBox的重叠率是30，第二个是40%，那么abo就是70%。重叠了0.7
+            // 个 BBox，假设总的BBox数量是2，那么平均重叠率，即平均分数就等于：总的重叠面积/总面积。
+            // 这里总面积就等于 BBox 的数量。因此，平均分数就等于：总的重叠面积/BBox的数量。
+            // 而 recall 就是召回率的意思。
+			for (int k = 0; k < gtNumCrnt; k++) // 对每个 BBox 而言。
+            {
 				double s = DataSetVOC::interUnio(boxes[j], boxesGT[k]);
 				score[k] = max(score[k], s);
 				detected[k] = score[k] >= 0.5 ? 1 : 0;
@@ -819,8 +882,12 @@ void Objectness::evaluatePerImgRecall(const vector<vector<Vec4i> > &boxesTests, 
 			sumDetected = 0, abo = 0;
 			for (int k = 0; k < gtNumCrnt; k++)	
 				sumDetected += detected[k], abo += score[k];
-			recalls[j] += sumDetected/gtNumCrnt;
-			avgScore[j] += abo/gtNumCrnt;
+			recalls[j] += sumDetected/gtNumCrnt; // recalls[j] means: the jth detection' recall rate. -- by liyang.
+			// 因为对每个BBox而言，总是保留最大的重叠率，因此，重叠率会越来越大，分数会越来越高
+            // 因而，平均分数也会越来越高，总有 avgScore[j+1] >= avgScore[j]
+            avgScore[j] += abo/gtNumCrnt;
+            // 注：avgScore 是在三重循环前声明的，即在对测试图像的循环之前。因此，recalls 和
+            // avgScore 采用 += 运算时，计算的是所有测试图像的 总召回率 和 平均分数。
 		}
 	}
 
@@ -1013,6 +1080,47 @@ bool Objectness::matRead(const string& filename, Mat& _M){
 	fclose(f);
 	M.copyTo(_M);
 	return true;
+}
+
+void Objectness::evaluatePAMI12(CStr &saveName)
+{
+    const int TEST_NUM = _voc.testSet.size();
+    vector<vector<Vec4i>> boxesTests(TEST_NUM);
+    CStr dir = _voc.wkDir + "PAMI12/";
+    const int numDet = 1853;
+    for (int i = 0; i < TEST_NUM; i++){
+        FILE *f = fopen(_S(dir + _voc.testSet[i] + ".txt"), "r");
+        double score;
+        boxesTests[i].resize(numDet);
+        for (int j = 0; j < numDet; j++){
+            Vec4i &v = boxesTests[i][j];
+            fscanf(f, "%d %d %d %d %g\n", &v[0], &v[1], &v[2], &v[3], &score);
+        }
+        fclose(f);
+    }
+    printf("Load data finished\r");
+    //evaluatePerImgRecall(boxesTests, saveName, numDet);
+    evaluatePerClassRecall(boxesTests, saveName, numDet);
+}
+
+void Objectness::evaluateIJCV13(CStr &saveName)
+{
+    const int TEST_NUM = _voc.testSet.size();
+    vector<vector<Vec4i>> boxesTests(TEST_NUM);
+    CStr dir = _voc.wkDir + "IJCV13/";
+    const int numDet = 10000;
+    for (int i = 0; i < TEST_NUM; i++){
+        FILE *f = fopen(_S(dir + _voc.testSet[i] + ".txt"), "r");
+        boxesTests[i].resize(numDet);
+        for (int j = 0; j < numDet; j++){
+            Vec4i &v = boxesTests[i][j];
+            fscanf(f, "%d, %d, %d, %d\n", &v[1], &v[0], &v[3], &v[2]);
+        }
+        fclose(f);
+    }
+    printf("Load data finished\r");
+    evaluatePerImgRecall(boxesTests, saveName, numDet);
+    //evaluate(boxesTests, saveName, numDet);
 }
 
 float distG(float d, float delta) {return exp(-d*d/(2*delta*delta));}

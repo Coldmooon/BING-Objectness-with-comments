@@ -20,24 +20,26 @@ void illutrateLoG()
 
 int main(int argc, char* argv[])
 {
-	//CStr wkDir = "D:/WkDir/DetectionProposals/VOC2007/Local/";
-	//illutrateLoG();
-	RunObjectness("WinRecall.m", 2, 8, 2, 130);
-
-	return 0;
+    //DataSetVOC::importImageNetBenchMark();
+    //DataSetVOC::cvt2OpenCVYml("D:/WkDir/DetectionProposals/VOC2007/Annotations/");
+    //CStr wkDir = "D:/WkDir/DetectionProposals/VOC2007/Local/";
+    //illutrateLoG();
+    RunObjectness("WinRecall.m", 2, 8, 2, 130);
+    return 0;
 }
 
+// W: feature window size
 void RunObjectness(CStr &resName, double base, int W, int NSS, int numPerSz)
 {
 	srand((unsigned int)time(NULL));
-	DataSetVOC voc("../VOC2007/");
+	DataSetVOC voc("/home/coldmoon/Developer/BING/bfzhouBING/VOC2007/");
 	voc.loadAnnotations();
 	//voc2007.loadDataGenericOverCls();
 
 	printf("Dataset:`%s' with %d training and %d testing\n", _S(voc.wkDir), voc.trainNum, voc.testNum);
 	printf("%s Base = %g, W = %d, NSS = %d, perSz = %d\n", _S(resName), base, W, NSS, numPerSz);
 	
-	Objectness objNess(voc, base, W, NSS);
+	Objectness objNess(voc, base, W, NSS); // objNess 存储参数设定、数据库路径等“信息”。
 
 	vector<vector<Vec4i> > boxesTests;
 	//objNess.getObjBndBoxesForTests(boxesTests, 250);
@@ -49,11 +51,19 @@ void RunObjectness(CStr &resName, double base, int W, int NSS, int numPerSz)
 
 	//To avoid running out of memory, you can load images only during
 	//prediction by setting preloadImages to false.
-
-	bool preloadModel = false, preloadImages = false;
+	bool preloadModel = false, preloadImages = true;
 	objNess.getObjBndBoxesForTestsFast(boxesTests, numPerSz, preloadModel, preloadImages);
 	//objNess.getRandomBoxes(boxesTests);
 
 	//objNess.evaluatePerClassRecall(boxesTests, resName, numPerSz);
 	//objNess.illuTestReults(boxesTests);
+    //objNess.evaluatePAMI12();
+    //objNess.evaluateIJCV13();
+    
+//    printf("The boxesTests'size is: %d \n", boxesTests.size());
+//    printf("For each boxesTests, its size is: \n");
+//    for(int i = 0; i < boxesTests.size(); ++i)
+//        printf("boxesTests[%d]: %d \n",i,boxesTests[i].size());
+    // }
+    //
 }

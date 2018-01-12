@@ -17,7 +17,7 @@ DataSetVOC::DataSetVOC(CStr &_wkDir)
 	classNames = CmFile::loadStrList(wkDir + "ImageSets/Main/class.txt");
 
 	// testSet.insert(testSet.end(), trainSet.begin(), trainSet.end());	
-	// testSet.resize(min(1000, (int)testSet.size()));
+	testSet.resize(min(10, (int)testSet.size()));
 
 	trainNum = trainSet.size();
 	testNum = testSet.size();
@@ -135,7 +135,7 @@ DataSetVOC::~DataSetVOC(void)
 void DataSetVOC::loadAnnotations()
 {
 	gtTrainBoxes.resize(trainNum);
-	gtTrainClsIdx.resize(trainNum);
+	gtTrainClsIdx.resize(trainNum); // each bound box is corresponding to a classID
 	for (int i = 0; i < trainNum; i++)
 		if (!loadBBoxes(trainSet[i], gtTrainBoxes[i], gtTrainClsIdx[i]))
 			return;

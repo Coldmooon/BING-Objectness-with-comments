@@ -8,14 +8,18 @@ template<typename VT, typename ST>
 struct ValStructVec
 {
 	ValStructVec(){clear();}
-	inline int size() const {return sz;} 
-	inline void clear() {sz = 0; structVals.clear(); valIdxes.clear();}
-	inline void reserve(int resSz){clear(); structVals.reserve(resSz); valIdxes.reserve(resSz); }
-	inline void pushBack(const VT& val, const ST& structVal) {valIdxes.push_back(make_pair(val, sz)); structVals.push_back(structVal); sz++;}
+	inline int size() const {return sz;} // 返回成员变量 sz
+	inline void clear() {sz = 0; structVals.clear(); valIdxes.clear();} // 作用类似 vector 中的 clear
+	inline void reserve(int resSz){clear(); structVals.reserve(resSz); valIdxes.reserve(resSz); } // 作用类似 vector 中的 reserve
+	
+    // 作用类似 vector 中的 push_back
+    inline void pushBack(const VT& val, const ST& structVal) {valIdxes.push_back(make_pair(val, sz)); structVals.push_back(structVal); sz++;}
 
 	inline const VT& operator ()(int i) const {return valIdxes[i].first;} // Should be called after sort
 	inline const ST& operator [](int i) const {return structVals[valIdxes[i].second];} // Should be called after sort
-	inline VT& operator ()(int i) {return valIdxes[i].first;} // Should be called after sort
+	
+    // first 和 second 是 pair 这个结构体里的。
+    inline VT& operator ()(int i) {return valIdxes[i].first;} // Should be called after sort
 	inline ST& operator [](int i) {return structVals[valIdxes[i].second];} // Should be called after sort
 
 	void sort(bool descendOrder = true);
@@ -31,6 +35,7 @@ private:
 	vector<ST> sortedStructVals; 
 };
 
+// 让两个 ValStructVec 首尾相接。
 template<typename VT, typename ST> 
 void ValStructVec<VT, ST>::append(const ValStructVec<VT, ST> &newVals, int startV)
 {
