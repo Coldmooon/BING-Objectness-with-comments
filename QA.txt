@@ -1,0 +1,294 @@
+• Reply•Share › 
+Avatar
+XinZuo • 6 months ago
+程老师，在训练SVM时的那几个solver_type都是什么意思呢？在程序里找了，好像没有注释。
+1  • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  XinZuo • 6 months ago
+这个是LibLinear的内容。你可以上LibLinear的官网上去查
+
+
+
+Avatar
+XinZuo • 6 months ago
+程老师，您好
+BING是没有可视化的效果的对吧？如果需要显示像paper中的矩形框要怎么做呢？
+1  • Reply•Share › 
+−
+Avatar
+Ming-Ming Cheng Mod  XinZuo • 6 months ago
+我共享的程序中有一个illustrate的函数，只是默认被注释掉了。你取消注释就可以了
+
+
+Avatar
+sudha • a month ago
+Dear MM Cheng,
+Thanks for sharing the code! I understand the binary approximation part also play a good role in system speed up. Could you please explain the Binary approximation portion alone with an example, I am not able to get the insight. Thanks in advance!
+ • Reply•Share › 
+Avatar
+Ming-Ming  sudha • a month ago
+You can find the binary approxiation ortion alone with an example in the slides, which could be download from this project page.
+
+
+
+Avatar
+Xiang-Nan • 2 months ago
+程老师您好，我是研一的新生，在这方面刚入门，正在读您的论文，有几个地方不太懂：1. Stage II 里面训练尺寸 i 对应的线性 SVM 系数 vi, ti 时您用的是“selected(NMS) proposals as training samples”，这里为什么要用 NMS 图像而不是继续像 Stage I 里面用原图？ 2.第一个Algorithm 里面求每个二维基底 aj 前面的系数 βj 时为什么要用点乘除以aj 模的平方，而不是除以 aj 的模？
+ • Reply•Share › 
+Avatar
+Ming-Ming  Xiang-Nan • a month ago
+一般training都尽量模拟testing的环境，training出来的才好用。第二个stage test的时候是对第一个stage的结果做进一步处理，所以...
+
+Avatar
+Jun • 5 months ago
+程老师，您好：
+对于同一个training和testing的datasets，跑两次完全一样设置，程序的结果会不一样。请问产生这个问题的原因是在inary norm时候有近似的原因吗？有时候两个结果会相差1%。也就是说，结果不具有确定性。
+ • Reply•Share › 
+Avatar
+Ming-Ming  Jun • 5 months ago
+training过程中的训练样本选择是有随机采样的，会引入一定的不确定性。通常对结果的影响在1%以内。
+
+
+
+
+Tianxu Zhang • 6 months ago
+程老师，我用你的程序对VOC2007上的图像进行训练，然后对MSRA 5000的数据库进行测试，发现测试效果不太好，这跟训练样本有关系么？需要针对MSRA 数据库重新训练么？因为MSRA上的图像都很简单，VOC2007上那么难的图像都能检测地很好，为何到了容易的数据库上反倒不行了？
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  Tianxu Zhang • 6 months ago
+这个Project是做proposal的，不是直接做检测的。我不太清楚你说的效果不太好是指？你是怎么评测结果的？你有导出MSRA数据集中标注的bounding Box，然后验证吗（默认的数据集的标注格式不太一样）？另外对于这种仅含有少量显著性物体的图片，http://mmcheng.net/salobj/ 方法可能效果会更接近很多应用的需求。
+ • Reply•Share › 
+−
+Avatar
+Tianxu Zhang  Ming-Ming Cheng • 6 months ago
+我主要是想用你方法的物体检测的结果来生成显著物体先验图，用于后续显著物体检测，这个思路已经在ICCV2013中显著性物体检测的方法中用到过，由于那些方法中是用what is an object那篇CVPR文章的代码做。你的文章在物体检测效果上比那篇文章好， 那么理论上生成的显著物体先验图就应该比ICCV2013的文章的效果更好，但是结果赶不上ICCV2013的文章的效果，所以我比较奇怪为啥。我是用生成的显著物体先验图来判断好坏的。
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  Tianxu Zhang • 6 months ago
+BING 方法直接predict proposals，中间结果并不生成‘先验图’。我不知道你是怎么从这个方法中得到“先验图”的？如果想得到Saliency map，建议你用：http://mmcheng.net/salobj/
+ • Reply•Share › 
+Avatar
+Tianxu Zhang  Ming-Ming Cheng • 6 months ago
+好的，谢谢哈,应该是我搞错了。另外还有个不是关于你文章的问题，是关于你BING这篇文章用于对比的IJCV2013那篇文章（Selective Search for Object Recognition）的，给它的作者发了Email，好久都不理我。你应该看过这篇文章了，我发现IJCV2013那篇文章只是给出了proposal，但没有给每个proposal打分，也就是不知道哪个proposal有更大可能性包含物体，不知道我理解的对不对?
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  Tianxu Zhang • 6 months ago
+嗯。IJCV 2013的文章没有给每个proposal打分。可能是他们收email太多了，不一定每个都回复。
+ • Reply•Share › 
+Avatar
+Tianxu Zhang  Ming-Ming Cheng • 6 months ago
+谢谢了。
+(^__^)
+
+
+
+程老师，为何每个生成的包含目标的窗口的score不归一化到[0,1]之间，甚至允许出现负值？
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  Yi Shi • 7 months ago
+目前比较大小就行了。归一化我没有做。
+
+
+Avatar
+Tianxu Zhang • 7 months ago
+程老师，你好，
+我想问下在./VOC2007/Local/ResIlu/中给出的proposal窗口只是很多检测出来的正确proposal中的一个，还是检测出的很多proposal中正确的全部窗口呢？另外，哪个函数能直接调整生成的proposal的个数？
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  Tianxu Zhang • 7 months ago
+请看FAQ中关于Proposal与Detection区别及联系的部分。本算法生成排序的Proposal，你可以根据自己的computational budget决定，需要多少个，取前多少个就行。
+
+
+Avatar
+CC • 7 months ago
+程老师，你好！我换成自己的图像，需要修改哪些地方呢？不做任何修改只是替换掉原图像位置的话，最后框还是原图像的位置（与原.yml中的位置对应）
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  CC • 7 months ago
+
+
+
+
+cw_yang • 7 months ago
+程老师，您好。我想问一下section3.2中的“w”是不是就是SVM中的那个margin啊？还有stage II中的v和t是怎么求出来的？我没看懂！
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  cw_yang • 7 months ago
+是的，Section 3中的w是标准svm formulation中的那个w。stage II中把stage I的score作为一个一维的feature，然后针对每一个size，训练一个新的linear svm，主要是为了得到一个bias term。其实这Stage II我们做的很弱，应该有更好的方法。
+
+
+
+Avatar
+Yi-MO • 8 months ago
+你好，想请问下如果用于行人检测，bing获得的窗口尺寸大小不一，用HOG怎么检测啊？
+HOG检测窗口大小通常都是固定的。
+如果把bing获得的窗口尺寸缩放为HOG检测窗口大小，那么行人特征应该会发生变化，谢谢！
+ • Reply•Share › 
+Avatar
+Ming-Ming  Yi-MO • 8 months ago
+对Proposal进行验证时不能原封不动的使用固定大小的detector。你可以把Proposal region resize一下。或者采用更巧妙的方法。在这个项目主页中有一节：Suggested detectors。其中有一个Reglets可以参考。
+1  • Reply•Share › 
+Avatar
+cc  Yi-MO • 7 months ago
+你好，你应用bing在行人检测上可以了吗？我最近也在学习BING，能否交流下，QQ562760086
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  cc • 7 months ago
+我目前还没具体做应用。还在试图改进proposal本身。
+
+
+Feng Wang • 9 months ago
+Your work is great! The idea of scaling the object to 8*8 is delicacy!
+I have downloaded your program and tested it a few weeks ago.
+Today, I want to use your accelerated convolution to speed up a project I'm working on. However, It did not work well. It cost even more time than the matchTemplate function provided by OpenCV.
+Then I replace the FilterBING.matchTemplate with the OpenCV's. The time of the two complementation is similar, and OpenCV perfroms even faster(0.0098 vs 0.0101). Since the BING filter is an approximation, the recall of BING is a little lower than OpenCV. BING gains 0.971 while OpenCV gains 0.973 for 5000 proposals.
+I am pretty sure my settings are correct because I did not change anything.
+
+In fact, the BING performs much worse in my project. It is about 2~3 times slower than OpenCV's matchTemplate!
+ • Reply•Share › 
+Avatar
+Ming-Ming  Feng Wang • 9 months ago
+Thanks for the reporting. I'm wondering if you have configured the program properly so that hardware bitwise operations are properly activated? Especially the popcnt for int64. If the program was linked to a software implementation of this sse instruction, it could be much slower. Generally bitwise operations are much more efficient or at least at similar speed than float operations. In a hardware implementation, a popcnt instruction could be in in one cup clock cycle, but a software alternative might be much different.
+ • Reply•Share › 
+Avatar
+Feng Wang  Feng Wang • 9 months ago
+Sorry for my poor English.
+I think your work is still meaningful to me because I am developing an APP for mobile phones.
+The main operator of your algorithm is BITWISE operators, while the real convolution is floating-point, which is pretty slow in Android.
+I will test the speed on mobile phones and report to you in recent days. (maybe not recent, I will go out to do an awful work)
+ • Reply•Share › 
+
+
+
+
+lao6 • 10 months ago
+Thanks for your reply. I still comfused : if we get the NG feature of a negative sample and multiply the learned filter and sum them up, will it get a negative value ? But in my experiment I still get a positive value.
+ • Reply•Share › 
+−
+Avatar
+Ming-Ming  lao6 • 10 months ago
+Linear SVM is not pow-full enough to deal with every negative examples. You might get some positive predictions for an negative examples, but statistically top 1000 proposals could give you 96+% recall.
+
+
+Avatar
+lao6 • 10 months ago
+Hi,I have read your perfect work about BING and read the source code recently. I have some questions unsoloved:(1) in the generateTrianData part I don't find the quantized window size. (2) if just use NG feature instead of BING, does it affect a lot? (3) when we get the BING feature ,how to find the object on the image
+ • Reply•Share › 
+Avatar
+Ming-Ming  lao6 • 10 months ago
+Thanks for your interest. In generateTrianData, i.e. stage I, we learn a single 8x8 filter, regardless window size. See the paper Sec. 3.2 state I. for more details. If use NG feature, you need 64 float multiply, 64 float add, and a few other operations for calculating the score for each window, where for BING the number of operations reduces to what is shown in Table 2. You should refer to how I get bounding boxes in predictBBoxSI() for your third question.
+
+
+
+Kai Wang • a year ago
+Hi,I have read your perfect work about BING. The most highlight is that it just use 1000 proposals to get almost the highest detection rate. It is very exciting for this huge innovation in object detection.
+
+My one question is how did you get this 1000 bounding boxes (object windows) around the object? You resize input image into 36 quantized target window . So, from each size , e.g. 80*160 target window, you directly further resized it into a 8*8 object window to get NG feature or anything else?
+
+In addition, I notice that you adopt non-maximal suppression (NMS) to select a set of proposals (object window) for each size of target window, it means that you totally get 1000 proposals from 36 quantized target window and each target window generates several to dozens of proposals by using NMS? I am right? Would you like to recommend me some References NMS used in you paper? I can not find it in your paper.
+
+At last, why NG features use the ground truth object windows as positive training samples to learn a linear model w in Equation (1), How can we deal with some training samples which have not ground truth object windows?
+
+Hope to receive your answer in your conveniences and help me deeply understand this perfect work. Thanks!
+
+best regards,
+Kai
+ • Reply•Share › 
+Avatar
+cong geng  Kai Wang • 9 months ago
+you should refer to this paper Proposal Generation for Object Detection using Cascaded Ranking SVMs https://docs.google.com/a/broo.... Regarding your questions, I think Ziming Zhang should be more helpful, who is the author of this idea.
+ • Reply•Share › 
+Avatar
+cong geng  Kai Wang • 9 months ago
+I think you could refer to this paper Proposal Generation for Object Detection using Cascaded Ranking SVMs https://docs.google.com/a/broo..., maybe you can get the answer. Or you could email ziming zhang instead, whose website is https://sites.google.com/a/bro.... He is the author of the idea you are interested.
+ • Reply•Share › 
+Avatar
+Shuai Bing  Kai Wang • a year ago
+Hi, Kai and Ming-Ming
+
+First, very lucky that I share the same name with Ming-Ming's fantastic feature, :-).
+
+I didn' t check the code of BING,so I'm not sure what specific NMS technique he uses in his implementation. However, NMS is a just a usual postprocessing step to suppress the same firing windows. There are some papers that you could read to get some idea: the first one is DPM paper from Felzenswalb (PAMI 2010) or you can read the code of DPM directly, and the other one is Dalals PhD thesis (INRIA 2006). Hopefully my information can help you.
+
+Best regards,
+Bing
+ • Reply•Share › 
+Avatar
+Kai Wang  Shuai Bing • 10 months ago
+Hi, Shuai Bing
+
+Thank you for supplying me the references about NMS. I got the idea of NMS from Wikipedia. However, I will read the DPM paper and further learn the NMS in object detection due to that I am not familiar with object detection.
+
+Thanks for your helpful answer! Also special thanks to Mingming Chen for sharing your paper's idea to all of us.
+
+best regards,
+Kai
+ • Reply•Share › 
+Avatar
+Ming-Ming  Shuai Bing • a year ago
+Thanks :)
+ • Reply•Share › 
+Avatar
+Ming-Ming  Kai Wang • a year ago
+Thank you for your interest in our work. Instead of resizing each image window, we resize the whole image (as described in the paper). For example, if the original image is 600*800 and we want to find a roughly 40*40 object in the image, we simply resize the original image to 120*160 and find 8*8 patches in this 120*160 image.
+
+Your understand of NMS is correct. I'm not familiar with any reference for NMS, or else I will put it in the paper. I consider it as a standard tips and just use it.
+
+In order to train objectness, you need ground truth annotation, the same as you train any other object detection system. Having ground truth is important for training, that why people spend so much effort to build ground truth datasets.
+ • Reply•Share › 
+Avatar
+Ming-Ming  Kai Wang • 9 months ago
+For the learning part, we follow the CVPR 2011 paper as introduced in our paper. You might find more details about them in that paper.
+
+
+
+Avatar
+CV • a year ago
+Nice work!
+You can try to plug this into convolutional neural networks and speed up generic object detection.
+E.g. instead of usual "pixel input + convolution filter" , change to "binarised gradient + approximate fast filter"
+ • Reply•Share › 
+Avatar
+Nick Sergievskiy  CV • 9 months ago
+Sounds interesting.
+I only read about laplacian approximation by Haar-like filters.
+Can you give some links on papers with this (“binarised gradient + approximate fast filter”) ideas.
+ • Reply•Share › 
+Avatar
+Ming-Ming  CV • a year ago
+Nice suggestions.
+
+
+程老师，你好
+
+请问Results\BBoxesB2W8MAXBGR 里面的结果中 (如下例) 是否第一列float数字即为 scores of the proposals, 为何这些score都是负值？ 是否排在越前面的是match with template 越好的？
+
+-0.307949, 1, 257, 353, 500
+
+-0.349893, 1, 1, 353, 500
+
+-0.364906, 97, 1, 352, 500
+
+-0.4157, 1, 33, 353, 288
+ • Reply•Share › 
+Avatar
+Ming-Ming Cheng Mod  Lorna • 5 months ago
+这个值的绝对值没有意义，相对排序才是我们要的
+
+
+
+wuyueying • 3 months ago
+老师好，最近看了您的这篇文章，我想问您一下Precision-recall curves是怎么评价算法优劣性的？
+ • Reply•Share › 
+Avatar
+Ming-Ming  wuyueying • 3 months ago
+precision recall曲线是越高代表算法越好。
+
+
+meng • 3 months ago
+程老师您好! 我有两个问题：1. 我看到这篇文章的代码在CmCode-master里也有出现，并且看起来很一致，请问CmCode-master和SaliencyICCV2013有什么区别么？2. 运行在CmCode-master中的这篇论文中的方法后，得到了非二值化的，类似figure 4中的saliency map。后续的adaptive thresholding的code可以在哪里找到么？ 谢谢~！
+ • Reply•Share › 
+Avatar
+Ming-Ming  meng • 3 months ago
+CmCode是个合集，所有公开的project都放在那了。SaliencyICCV2013是个单独的代码包。Adaptive thresholding的不是我提出的方法，代码不在我共享的范围。
+建议你阅读FAQ中关于proposal和detection区别的部分 (FAQ 8)。Proposal通常包含近1000个，很多是false positive，直接illustrate看不清楚，...
