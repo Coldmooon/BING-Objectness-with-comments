@@ -30,7 +30,7 @@ private:
 inline float FilterTIG::dot(const INT64 tig1, const INT64 tig2, const INT64 tig4, const INT64 tig8)
 {
     // __popcnt64 Counts the number of one bits (population count) in a 16-, 32-, or 64-byte unsigned integer.
-	INT64 bcT1 = __popcnt64(tig1);
+	INT64 bcT1 = __popcnt64(tig1); // do dot(tig1, 1) that is corresponding to |b| in Eqn.(4,6)
 	INT64 bcT2 = __popcnt64(tig2);
 	INT64 bcT4 = __popcnt64(tig4);
 	INT64 bcT8 = __popcnt64(tig8);
@@ -42,7 +42,7 @@ inline float FilterTIG::dot(const INT64 tig1, const INT64 tig2, const INT64 tig4
 	INT64 bc02 = ((__popcnt64(_bTIGs[0] & tig2) << 1) - bcT2) << 1;
 	INT64 bc04 = ((__popcnt64(_bTIGs[0] & tig4) << 1) - bcT4) << 2;
 	INT64 bc08 = ((__popcnt64(_bTIGs[0] & tig8) << 1) - bcT8) << 3;
-
+    // _bTIGs[0],_bTIGs[1]: [0,1]^64 space, that is INT64
 	INT64 bc11 = (__popcnt64(_bTIGs[1] & tig1) << 1) - bcT1;
 	INT64 bc12 = ((__popcnt64(_bTIGs[1] & tig2) << 1) - bcT2) << 1;
 	INT64 bc14 = ((__popcnt64(_bTIGs[1] & tig4) << 1) - bcT4) << 2;

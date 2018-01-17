@@ -40,7 +40,7 @@ void FilterTIG::reconstruct(Mat &w1f){
 Mat FilterTIG::matchTemplate(const Mat &mag1u){
 	const int H = mag1u.rows, W = mag1u.cols; // 获取梯度图的行列数
 	const Size sz(W+1, H+1); // Expand original size to avoid dealing with boundary conditions
-    
+//    cout << "mag1u: " << mag1u.type() << "\n" << mag1u << endl;
     // 生成全零矩阵，INT64: long long 类型； byte：unsigned char 类型。
 	Mat_<INT64> Tig1 = Mat_<INT64>::zeros(sz), Tig2 = Mat_<INT64>::zeros(sz);
 	Mat_<INT64> Tig4 = Mat_<INT64>::zeros(sz), Tig8 = Mat_<INT64>::zeros(sz);
@@ -49,6 +49,7 @@ Mat FilterTIG::matchTemplate(const Mat &mag1u){
 	Mat_<float> scores(sz); // 访问scores，可以直接像数组一样用 scores(x,y) 即可。
 	for(int y = 1; y <= H; y++){  // for each row
 		const byte* G = mag1u.ptr<byte>(y-1); // 第一次循环的时候是处理梯度图的第 0 行。
+        // T1-T8 设置了4个变量, 这是因为公式(5), 设 Nw=4
 		INT64* T1 = Tig1.ptr<INT64>(y); // Binary TIG of current row
 		INT64* T2 = Tig2.ptr<INT64>(y);
 		INT64* T4 = Tig4.ptr<INT64>(y);
@@ -61,23 +62,36 @@ Mat FilterTIG::matchTemplate(const Mat &mag1u){
 		byte* R2 = Row2.ptr<byte>(y);
 		byte* R4 = Row4.ptr<byte>(y);
 		byte* R8 = Row8.ptr<byte>(y);
+        // 根据论文的说, 要把梯度图近似为 bit 图。这个过程可以单独用一个 for 循环来实现, 预先把梯度图转化为 bit 图, 再做积分图处理。
+        // 但是为了简化程序, 作者没有显示的转化, 而是在脑子里想象它已经是一个 bit 图了, 后面直接取值就可以了。这个想法其实就是 ((g >> 4) & 1).
+        // ((g >> 4) & 1) 其实就是取梯度图 (byte 类型) 的 1 个 bit.
 		float *s = scores.ptr<float>(y);
-		for (int x = 1; x <= W; x++) { // for each column
-			byte g = G[x-1]; // 首次循环的时候，处理的是梯度图的第 0 个像素，即填充的像素。
-			R1[x] = (R1[x-1] << 1) | ((g >> 4) & 1); // 这里 & 1 的作用是取最后一行的最后一个元素,即论文中的 bxy。
-			R2[x] = (R2[x-1] << 1) | ((g >> 5) & 1);
-			R4[x] = (R4[x-1] << 1) | ((g >> 6) & 1);
-			R8[x] = (R8[x-1] << 1) | ((g >> 7) & 1);
+		for (int x = 1; x <= W; x++) { // for each column; ((g >> 4) & 1) 等价于把梯度图近似为 bit 图,其余信息丢弃.
+			byte g = G[x-1]; // 首次循环的时候，处理的是梯度图的第 0 个像素。
+            // R[x-1] 其实是个临时变量, 用来表示当前列的前一列的值. 根据算法2, 每个 8x8 特征的获取，只需要知道其相对位置的 R_x-1y 的前 7 bit 即可
+            // 也就是 R[X-1] << 1.
+			R1[x] = (R1[x-1] << 1) | ((g >> 4) & 1); // 这里 & 1 的作用是取 bxy(见论文) 最后一行的最后一个元素。
+			R2[x] = (R2[x-1] << 1) | ((g >> 5) & 1); //　As described in Eqn.(5), use Ng=4 bits to approximate the gradients.
+			R4[x] = (R4[x-1] << 1) | ((g >> 6) & 1); // Use >> operation to pop up the last(or first) bit, and so the second
+			R8[x] = (R8[x-1] << 1) | ((g >> 7) & 1); // one becomes the last(or first) bit which will be merged into Rx[].
 			T1[x] = (Tu1[x] << 8) | R1[x];  // 根据算法2猜测，这里的T1就是一个BING特征图。
 			T2[x] = (Tu2[x] << 8) | R2[x];  // R2 就是一个BING特征图的最后一行
 			T4[x] = (Tu4[x] << 8) | R4[x];
 			T8[x] = (Tu8[x] << 8) | R8[x];
-			s[x] = dot(T1[x], T2[x], T4[x], T8[x]); // 这里应该是类似积分直方图的算法。
+			s[x] = dot(T1[x], T2[x], T4[x], T8[x]); // Compute Eqn.(6) in paper.
 		}
 	}
 	Mat matchCost1f;
-	scores(Rect(8, 8, W-7, H-7)).copyTo(matchCost1f);
-    // cout << "scores:\n" << scores << endl;
-    // cout << "matchCost1f: \n" << matchCost1f << endl;
+	scores(Rect(8, 8, W-7, H-7)).copyTo(matchCost1f); // 移除 pad 部分的计算结果，只保留原输入的卷积结果。
+//     cout << "scores:\n" << scores << endl;
+//     cout << "matchCost1f: \n" << matchCost1f << endl;
 	return matchCost1f;
+    // 注意, 这里的梯度图是 byte 形式存储的, 但根据公式 (5)，梯度图每个字节的前 k 个 bit 来近似。为了方便分析, 这里只考虑 1bit 近似的情况。
+    // 所以, 对于 23x16 的梯度图, 就转化为了 23bit x 16bit 的位图。因为模板已经转化为了二进制，且维度是 8x8 bit = INT64。所以为了方便
+    // 进行模板匹配, 这里用积分图的思想, 预先把 23bit x 16bit 的每个 8x8 区域都拿出来, 存放在一个新的 TIG 变量里, 因为模板匹配是采用滑动
+    // 窗口机制, stride = 1, 所以 TIG 图的大小应该与梯度图和位图对应, 即有 23x16 个元素, 为了处理边界效应, 程序额外加了个 pad = 1 INT64。
+    // 所以 TIG 的大小是 24*17。显然 TIG 里相邻元素的内容是有重复的, 这是通过空间换时间的策略。
+    // 另一个问题, 为什么 Row1 要额外 pad 一个 byte? 回答这个问题需要在纸上画图。对于 23x16 的梯度 bit 图。如果我们要计算第一个元素的 8x8
+    // BING 特征, 根据算法2, 就必须知道前 8 bit, 即 R_x-1y, 但因为第一个元素已经是边界, 是没有 x-1 的, 所以为了处理边界问题，要额外补充
+    // 8 bit, 也就是一个字节。因为最右边的元素不存在边界问题, 所以不需要 pad 2 个 byte。
 }
