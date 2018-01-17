@@ -20,6 +20,7 @@ public:
 
 	// Training and testing on the dataset
 	void trainObjectness(int numDetPerSize = 100);
+    void getObjBndBoxesForTest( cv::Mat im, vector<vector<Vec4i> > &_boxes, int numDetPerSize );
 	void getObjBndBoxesForTests(vector<vector<Vec4i> > &boxesTests, int numDetPerSize = 100);
 	void getObjBndBoxesForTestsFast(vector<vector<Vec4i> > &boxesTests, int numDetPerSize = 100, bool preloadModel=false, bool preloadImages=false);
 	void getRandomBoxes(vector<vector<Vec4i> > &boxesTests, int numD = 10000);
@@ -28,6 +29,7 @@ public:
 	void evaluatePerClassRecall(vector<vector<Vec4i> > &boxesTests, CStr &saveName = "Plot.m", const int numDet = 1000);
 	void evaluatePerImgRecall(const vector<vector<Vec4i> > &boxesTests, CStr &saveName, const int numDet = 1000);
 	void illuTestReults(const vector<vector<Vec4i> > &boxesTests);
+	bool illuSingle(cv::Mat img, const vector<vector<Vec4i> > &boxesTests, vector<Vec4i> & gtBoxes);
 	void setColorSpace(int clr = MAXBGR);
 	
 	// Training SVM with feature vector X and label Y. 

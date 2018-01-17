@@ -33,6 +33,7 @@ Objectness::~Objectness(void)
 void Objectness::setColorSpace(int clr)
 {
 	_Clr = clr;
+    cout << " _W: " << _W << endl;
 	_modelName = _voc.resDir + format("ObjNessB%gW%d%s", _base, _W, _clrName[_Clr]);
 	_trainDirSI = _voc.localDir + format("TrainS1B%gW%d%s/", _base, _W, _clrName[_Clr]);
 	_bbResDir = _voc.resDir + format("BBoxesB%gW%d%s/", _base, _W, _clrName[_Clr]);
@@ -73,22 +74,27 @@ void Objectness::predictBBoxSI(CMat &img3u, ValStructVec<float, Vec4i> &valBoxes
 // void Objectness::predictBBoxSI(Mat &img3u, ValStructVec<float, Vec4i> &valBoxes, vecI &sz, int NUM_WIN_PSZ, bool fast)
 {
 
-    // _svmSzIdxs 存储的都是一些滤波器的大小。
+    // _svmSzIdxs 存储的都是一些滤波器的大小。numSz: 28 种尺度, 因此有 28 种尺度的分类器
 	const int numSz = _svmSzIdxs.size(); // svmSzIdxs 是一个 vector，对应第一阶段学习到的分类器。第一阶段学习的分类器就用于第一阶段的检测。
 	const int imgW = img3u.cols, imgH = img3u.rows;
 	valBoxes.reserve(10000);
 	sz.clear(); sz.reserve(10000);
 	for (int ir = numSz - 1; ir >= 0; ir--){ // ir and r are used to compute the ratio.
 		int r = _svmSzIdxs[ir];
+
         // pow (x, y) 函数返回 x^y。 base = 2 或许是为了 2 进制的某种运算
+		// _minT(cvCeil(log(10.)/_logBase))
+		// _maxT(cvCeil(log(500.)/_logBase))
+		// _numT(_maxT - _minT + 1)
 		int height = cvRound(pow(_base, r/_numT + _minT)), width = cvRound(pow(_base, r%_numT + _minT));
-		if (height > imgH * _base || width > imgW * _base) // 如果最小大小比图片大小还大，那么就跳过这张图片。
+		if (height > imgH * _base || width > imgW * _base) // 如果最小大小比图片大小还大，那么就跳过这个尺度。
 			continue;
 
 		height = min(height, imgH), width = min(width, imgW);
 		Mat im3u, matchCost1f, mag1u;
         
-        // 这里会把图像缩放到固定大小，如论文中所说。
+        // As mentioned in paper, the image will be resized to lots of predefined different size, then do template match.
+		// 1.0 is used to convert int into float
 		resize(img3u, im3u, Size(cvRound(_W*imgW*1.0/width), cvRound(_W*imgH*1.0/height)));
 		gradientMag(im3u, mag1u); // 每个元素用一个字节存储。
         // cout << "mag1u size: (" << mag1u.size() << ")" << ": " << endl;
@@ -109,28 +115,43 @@ void Objectness::predictBBoxSI(CMat &img3u, ValStructVec<float, Vec4i> &valBoxes
 		//imwrite(_voc.localDir + format("%d.png", r), mag1u);	
         //Mat mag1f;
         //mag1u.convertTo(mag1f, CV_32F);
-        //matchTemplate(mag1f, _svmFilter, matchCost1f, CV_TM_CCORR);
+        // matchTemplate(mag1f, _svmFilter, matchCost1f, CV_TM_CCORR);
 		// ----------
-		matchCost1f = _tigF.matchTemplate(mag1u); // 用 滤波器 tigF 在梯度图 mag1u 上面计算一个分数。
+
+		// filter size = 8 = kernel_size; stride = 1; pad = 0;
+		// So output_size = (input_size - 8)/1 + 1;
+		// So matchCost1f_size = (mag1u_size - 8)/1 + 1
+		matchCost1f = _tigF.matchTemplate(mag1u); // 用 滤波器 tigF 在梯度图 mag1u 上面计算一个分数,可以理解为激活值。
 //        cout << "matchCost1f.at<float>(0): " << matchCost1f << endl;
 //        cout << "matchCost1f.at<float>(0): " << matchCost1f.at<float>(0,0) << endl;
+
+		// elements in matchCost comes from matchCost1f.
+		// In other words, elements in matchCost must be one of elements in matchCost1f.
 		ValStructVec<float, Point> matchCost;
-		nonMaxSup(matchCost1f, matchCost, _NSS, NUM_WIN_PSZ, fast);
+
+		// nonMaxSup first sorts matchCost1f by scores, then loop from the first (with max score) proposal,
+		// and remove this proposal's neighbor proposals. To do this, author uses a mask matrix isMax1u.
+		// nonMaxSup() can be seen as a sifter. Only the maximum element in a _NSS*_NSS area of matchCost1f can go out.
+		nonMaxSup(matchCost1f, matchCost, _NSS, NUM_WIN_PSZ, fast); // 可以理解为 max-pooling
         // matchCost 中存储了找到的窗口
-        
+
+        cout << matchCost1f << endl;
+		cout << "\nOutput feature map: " << matchCost1f.rows << " x " << matchCost1f.cols << " = " << matchCost1f.rows * matchCost1f.cols << endl;
 		// Find true locations and match values
 		double ratioX = width/_W, ratioY = height/_W;
 		int iMax = min(matchCost.size(), NUM_WIN_PSZ); // NUM_WIN_PSZ: 每种 size 的窗口数量限制
+		cout << iMax << " units are sifted out by NMS or max-pooling." << endl;
+
 		for (int i = 0; i < iMax; i++){
 			float mVal = matchCost(i); // 获得分数
-			Point pnt = matchCost[i]; // 窗口对应的位置
+			Point pnt = matchCost[i]; // 窗口对应的[起点]位置
 			Vec4i box(cvRound(pnt.x * ratioX), cvRound(pnt.y*ratioY)); // 原位置
 			box[2] = cvRound(min(box[0] + width, imgW)); // 在原图上的窗口的大小
 			box[3] = cvRound(min(box[1] + height, imgH));
 			box[0] ++;
 			box[1] ++;
-			valBoxes.pushBack(mVal, box);  // 将临时结果保存起来。
-			sz.push_back(ir);
+			valBoxes.pushBack(mVal, box);  // aggregate all the proposals from different size,
+			sz.push_back(ir); // and remember that which size they are from.
 //            rectangle(forshow, Rect(box[0],box[1],box[2],box[3]), cv::Scalar(255,255,0), 2);
 		}
         
@@ -146,7 +167,8 @@ void Objectness::predictBBoxSII(ValStructVec<float, Vec4i> &valBoxes, const vecI
 	int numI = valBoxes.size();
 	for (int i = 0; i < numI; i++){
 		const float* svmIIw = _svmReW1f.ptr<float>(sz[i]);
-		valBoxes(i) = valBoxes(i) * svmIIw[0] + svmIIw[1]; 
+		// 用分类器 II 更新每个 box 的置信度
+		valBoxes(i) = valBoxes(i) * svmIIw[0] + svmIIw[1]; // valBoxes(i) 返回窗口分数
 	}
 	valBoxes.sort();
 }
@@ -154,23 +176,31 @@ void Objectness::predictBBoxSII(ValStructVec<float, Vec4i> &valBoxes, const vecI
 // Get potential bounding boxes, each of which is represented by a Vec4i for (minX, minY, maxX, maxY).
 // The trained model should be prepared before calling this function: loadTrainedModel() or trainStageI() + trainStageII().
 // Use numDet to control the final number of proposed bounding boxes, and number of per size (scale and aspect ratio)
+//
+// For each image, to compute the proposals, the algorithm search multiple size, and for each size, resize the image to
+// this size, then compute its feature map. After that, match the feature map with the template
 void Objectness::getObjBndBoxes(CMat &img3u, ValStructVec<float, Vec4i> &valBoxes, int numDetPerSize)
 {
 	CV_Assert_(filtersLoaded() , ("SVM filters should be initialized before getting object proposals\n"));
-	vecI sz; // number of boxes for the current image. -- by liyang.
+	vecI sz; // size for each bounding box. -- by liyang.
 	predictBBoxSI(img3u, valBoxes, sz, numDetPerSize, false); // get each box'score. -- by liyang.
     
-    // for test:
-    Mat forshow = img3u;
-    for (int i = 0; i < valBoxes.structVals.size(); ++i)
-        rectangle(forshow, Rect(valBoxes[i].val[0],valBoxes[i].val[1],valBoxes[i].val[2],valBoxes[i].val[3]), cv::Scalar(255,255,0), 2);
-    imshow("img3u", forshow);
-    waitKey(0);
+    // for test: comment out the following lines if using multi-thread
+//    Mat forshow = img3u;
+//    for (int i = 0; i < valBoxes.structVals.size(); ++i)
+//        rectangle(forshow, Rect(valBoxes[i].val[0],valBoxes[i].val[1],valBoxes[i].val[2],valBoxes[i].val[3]), cv::Scalar(255,255,0), 2);
+//    imshow("img3u", forshow);
+//    waitKey(0);
 
 	predictBBoxSII(valBoxes, sz); // sort valBoxes.valldxes by descanding. -- by liyang.
 	return;
 }
-
+// nonMaxSup() does two things:
+// 1) sort matchCost1f by scores;
+// 2) loop from the first score, that is the first proposal, and remove its neighbors.
+// 3) the author use isMax1u to implement this process. At last, all the elements in isMax1u are zero.
+// So, this function stores the top-N proposals into matchCost, and these proposals are not intersectant and lie in different
+// area of matchCost1f map. This is because their neighbors are removed.
 void Objectness::nonMaxSup(CMat &matchCost1f, ValStructVec<float, Point> &matchCost, int NSS, int maxPoint, bool fast)
 {
 	const int _h = matchCost1f.rows, _w = matchCost1f.cols;
@@ -188,29 +218,39 @@ void Objectness::nonMaxSup(CMat &matchCost1f, ValStructVec<float, Point> &matchC
 					valPnt.pushBack(d[c], Point(c, r));
 		}
 	}
-	else{
+	else{ // copy matchCost1f to the temp valuable since sort() will change the valuable.
 		for (int r = 0; r < _h; r++){
 			const float* d = matchCost1f.ptr<float>(r);
 			for (int c = 0; c < _w; c++)
-				valPnt.pushBack(d[c], Point(c, r));
+				valPnt.pushBack(d[c], Point(c, r)); // the left-top point of the proposal comes from the location of matchCost1f
 		}
 	}
-
-	valPnt.sort();
-	for (int i = 0; i < valPnt.size(); i++){
+//	std::cout << isMax1u << std::endl;
+	valPnt.sort(); // valPnt stores the proposal scores, the number of which is matchCost1f.cols * matchCost1f.rows.
+	for (int i = 0; i < valPnt.size(); i++){ // for each proposal, do the following:
 		Point &pnt = valPnt[i];
-		if (isMax1u.at<byte>(pnt)){
+		if (isMax1u.at<byte>(pnt)){ // improvement: points are accessed multiple times.
 			matchCost.pushBack(valPnt(i), pnt);
-			for (int dy = -NSS; dy <= NSS; dy++) for (int dx = -NSS; dx <= NSS; dx++){
-				Point neighbor = pnt + Point(dx, dy);
-				if (!CHK_IND(neighbor))
-					continue;
-				isMax1u.at<byte>(neighbor) = false;
+			for (int dy = -NSS; dy <= NSS; dy++) // consider the proposal's neighbor of range 2
+				for (int dx = -NSS; dx <= NSS; dx++) {
+					Point neighbor = pnt + Point(dx, dy); // BUG? neighbor contains itself.
+					CHK_IND(neighbor);
+					if (!CHK_IND(neighbor)) // if pnt is at the bound or the neighbor is out of range.
+						continue;
+					isMax1u.at<byte>(neighbor) = false;
 			}
 		}
-		if (matchCost.size() >= maxPoint)
+		if (matchCost.size() >= maxPoint) {
+			// maxPoint = numPerSz. This makes sense since valPnt has been sorted by scores.
+			// If the code arrives at here, then not all the elements in the mask matrix, isMax1u, are zero.
+			// This is because that lots of units are not accessed due to exceeding the limit of maxPoint.
+			std::cout << "Out of the max number of proposals. \nMask of NMS or max-pooling: \n" << isMax1u
+					  << "\n----------------------------------" << std::endl;
 			return;
+		}
 	}
+	// However, if the process arrives at here, then all the elements in the mask matrix, isMax1u, are zero.
+	std::cout << "Mask of NMS or max-pooling: \n" << isMax1u << "\n----------------------------------" << std::endl;
 }
 
 void Objectness::gradientMag(CMat &imgBGR3u, Mat &mag1u)
@@ -359,7 +399,7 @@ void Objectness::generateTrianData()
 	vector<vecI> szTrainP(NUM_TRAIN); // Corresponding size index. 
 	const int NUM_NEG_BOX = 100; // Number of negative windows sampled from each image
 
-#pragma omp parallel for
+//#pragma omp parallel for
 	for (int i = 0; i < NUM_TRAIN; i++)	{
 		const int NUM_GT_BOX = (int)_voc.gtTrainBoxes[i].size();
 		vector<Mat> &xP = xTrainP[i], &xN = xTrainN[i];
@@ -507,7 +547,7 @@ void Objectness::trainStateII(int numPerSz)
 		vecF &val = VAL[i];
 		int num = sz.size();
 		for (int j = 0; j < num; j++){
-			int r = sz[j];
+			int r = sz[j]; // ratio?
 			CV_Assert(r >= 0 && r < NUM_SZ);
 			if (y[j] == 1)
 				rXP[r].push_back(Mat(1, 1, CV_32F, &val[j]));
@@ -585,13 +625,13 @@ void Objectness::illustrate()
 void Objectness::trainStageI()
 {
 	vecM pX, nX;
-	pX.reserve(200000), nX.reserve(200000);
+ 	pX.reserve(200000), nX.reserve(200000);
 	Mat xP1f, xN1f;
-	CV_Assert(matRead(_modelName + ".xP", xP1f) && matRead(_modelName + ".xN", xN1f));
+	CV_Assert(matRead(_modelName + ".xP", xP1f) && matRead(_modelName + ".xN", xN1f)); // load pos and neg features from disk
 	for (int r = 0; r < xP1f.rows; r++)
-		pX.push_back(xP1f.row(r));
+		pX.push_back(xP1f.row(r)); // pos samples
 	for (int r = 0; r < xN1f.rows; r++)
-		nX.push_back(xN1f.row(r));
+		nX.push_back(xN1f.row(r)); // neg samples
 	Mat crntW = trainSVM(pX, nX, L1R_L2LOSS_SVC, 10, 1);
 	crntW = crntW.colRange(0, crntW.cols - 1).reshape(1, _W);
 	CV_Assert(crntW.size() == Size(_W, _W));
@@ -683,6 +723,23 @@ Mat Objectness::trainSVM(const vector<Mat> &pX1f, const vector<Mat> &nX1f, int s
 		Y[i] = -1;
 	}
 	return trainSVM(X1f, Y, sT, C, bias, eps);
+}
+
+void Objectness::getObjBndBoxesForTest( cv::Mat im, vector<vector<Vec4i> > &_boxes, int numDetPerSize )
+{
+    loadTrainedModel();
+    illustrate();
+
+	vector<ValStructVec<float, Vec4i> > boxesTests;
+	boxesTests.resize(1);
+	boxesTests[0].reserve(10000);
+
+    getObjBndBoxes(im, boxesTests[0], numDetPerSize);
+
+	_boxes.resize(1);
+	_boxes[0].resize(boxesTests[0].size());
+	for (int j = 0; j < boxesTests[0].size(); j++)
+		_boxes[0][j] = boxesTests[0][j];
 }
 
 // Get potential bounding boxes for all test images
@@ -802,7 +859,7 @@ void Objectness::getObjBndBoxesForTestsFast(vector<vector<Vec4i> > &_boxesTests,
 		CStr fName = _bbResDir + _voc.testSet[i];
 		ValStructVec<float, Vec4i> &boxes = boxesTests[i];
 		FILE *f = fopen(_S(fName + ".txt"), "w");
-		fprintf(f, "%d\n", boxes.size());
+//		fprintf(f, "%d\n", boxes.size());
 		for (size_t k = 0; k < boxes.size(); k++)
 			fprintf(f, "%g, %s\n", boxes(k), _S(strVec4i(boxes[k])));
 		fclose(f);
@@ -911,6 +968,44 @@ void Objectness::evaluatePerImgRecall(const vector<vector<Vec4i> > &boxesTests, 
 	PrintVector(f, avgScore, "MABO");
 	fprintf(f, "semilogx(1:%d, DR(1:%d));\nhold on;\nsemilogx(1:%d, DR(1:%d));\naxis([1, 5000, 0, 1]);\nhold off;\n", NUM_WIN, NUM_WIN, NUM_WIN, NUM_WIN);
 	fclose(f);	
+}
+
+bool Objectness::illuSingle(cv::Mat img, const vector<vector<Vec4i> > &boxesTests, vector<Vec4i> & gtBoxes)
+{
+	CStr resDir = _voc.localDir + "ResIlu/";
+	CmFile::MkDir(resDir);
+	const int TEST_NUM = 1;
+	for (int i = 0; i < TEST_NUM; i++){
+		const vector<Vec4i> &boxesGT = gtBoxes;
+		const vector<Vec4i> &boxes = boxesTests[i];
+		const int gtNumCrnt = boxesGT.size();
+		Mat bboxMatchImg = Mat::zeros(img.size(), CV_32F);
+
+		vecD score(gtNumCrnt);
+		vector<Vec4i> bboxMatch(gtNumCrnt);
+		for (int j = 0; j < boxes.size(); j++){
+			const Vec4i &bb = boxes[j];
+			for (int k = 0; k < gtNumCrnt; k++)	{
+				double mVal = DataSetVOC::interUnio(boxes[j], boxesGT[k]);
+				if (mVal < score[k])
+					continue;
+				score[k] = mVal;
+				bboxMatch[k] = boxes[j];
+			}
+		}
+
+		for (int k = 0; k < gtNumCrnt; k++){
+			const Vec4i &bb = bboxMatch[k];
+			rectangle(img, Point(bb[0], bb[1]), Point(bb[2], bb[3]), Scalar(0), 3);
+			rectangle(img, Point(bb[0], bb[1]), Point(bb[2], bb[3]), Scalar(255, 255, 255), 2);
+			rectangle(img, Point(bb[0], bb[1]), Point(bb[2], bb[3]), Scalar(0, 0, 255), 1);
+		}
+        imshow("img3u", img);
+        waitKey(0);
+		imwrite(resDir + "test" + "_Match.jpg", img);
+	}
+
+	return true;
 }
 
 void Objectness::illuTestReults(const vector<vector<Vec4i> > &boxesTests)
