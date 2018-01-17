@@ -36,10 +36,10 @@ struct DataSetVOC
 
 public: // Used for testing the ability of generic over classes
 	void loadDataGenericOverCls();
-
+	bool loadBBoxes(CStr &nameNE, vector<Vec4i> &boxes, vecI &clsIdx);
 private:
 	void loadBox(const FileNode &fn, vector<Vec4i> &boxes, vecI &clsIdx);
-	bool loadBBoxes(CStr &nameNE, vector<Vec4i> &boxes, vecI &clsIdx);
+
 	static void getXmlStrVOC(CStr &fName, string &buf);
 	static inline string keepXmlChar(CStr &str);
 	static bool cvt2OpenCVYml(CStr &yamlName, CStr &ymlName); // Needs to call yml.m in this solution before running this function.
